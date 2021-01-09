@@ -5,6 +5,8 @@ import "log"
 import "net/rpc"
 import "hash/fnv"
 
+import "os"
+import "io/ioutil"
 
 //
 // Map functions return a slice of KeyValue.
@@ -24,7 +26,6 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
-
 //
 // main/mrworker.go calls this function.
 //
@@ -32,10 +33,51 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
+	// args := WorkerArgs{}
+	// args.WorkerName = "my_mapper"
+	// args.WorkerType = MapperType
+	reply := requestMaster()
 
 	// uncomment to send the Example RPC to the master.
 	// CallExample()
 
+	if reply.WorkerType == MapperType {
+		fileName := reply.FileName
+		file, err := os.Open(fileName)
+		if err != nil {
+			log.Fatalf("cannot open %v", fileName)
+		}
+		content, err := ioutil.ReadAll(file)
+		file.Close()
+		// kva := mapf(fileName, string(content))
+		// fmt.Print(kva)
+		mapf(fileName, string(content))
+		log.Printf("Worker %d completed the task.", reply.WorkerIndex)
+
+		mapperJobArgs := MapperJobArgs{MapperType, reply.WorkerIndex}
+		mapperJobReply := completeTask(&mapperJobArgs)
+
+		if mapperJobReply.Status == SUCCESS {
+			log.Printf("Master successfuly recieved message from work %d", reply.WorkerIndex)
+		}
+	} else if reply.WorkerType == ReducerType {
+		log.Print("reducer")
+	} else {
+		log.Print("unassigned")
+	}
+}
+
+func completeTask(args *MapperJobArgs) MapperJobReply {
+	reply := MapperJobReply{}
+	call("Master.CompleteTask", &args, &reply)
+	return reply
+}
+
+func requestMaster() WorkerReply {
+	args := WorkerArgs{}
+	reply := WorkerReply{}
+	call("Master.AskTask", &args, &reply)
+	return reply
 }
 
 //

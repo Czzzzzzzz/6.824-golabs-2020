@@ -14,6 +14,11 @@ import "strconv"
 // and reply for an RPC.
 //
 
+type MessageCode int
+
+const SUCCESS MessageCode = 400
+const FAIL MessageCode = 500
+
 type ExampleArgs struct {
 	X int
 }
@@ -22,8 +27,31 @@ type ExampleReply struct {
 	Y int
 }
 
-// Add your RPC definitions here.
+type WorkerType int
 
+const MapperType WorkerType = 1
+const ReducerType WorkerType = 2
+
+// Add your RPC definitions here.
+type WorkerArgs struct {
+	WorkerName string
+}
+
+type WorkerReply struct {
+	FileName    string
+	WorkerType  WorkerType
+	WorkerIndex int
+}
+
+// proto is used when mapper completes the job.
+type MapperJobArgs struct {
+	WorkerType  WorkerType
+	WorkerIndex int
+}
+
+type MapperJobReply struct {
+	Status MessageCode
+}
 
 // Cook up a unique-ish UNIX-domain socket name
 // in /var/tmp, for the master.
