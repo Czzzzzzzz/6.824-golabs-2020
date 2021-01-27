@@ -8,6 +8,8 @@ import "hash/fnv"
 import "os"
 import "io/ioutil"
 
+import "encoding/json"
+
 //
 // Map functions return a slice of KeyValue.
 //
@@ -51,7 +53,9 @@ func Worker(mapf func(string, string) []KeyValue,
 		file.Close()
 		// kva := mapf(fileName, string(content))
 		// fmt.Print(kva)
-		mapf(fileName, string(content))
+		kva := mapf(fileName, string(content))
+		// saveIntermediaResutls(kva, reply.WorkerIndex, reply.nReducerNum)
+		saveIntermediaResutls(kva, reply.WorkerIndex, 10)
 		log.Printf("Worker %d completed the task.", reply.WorkerIndex)
 
 		mapperJobArgs := MapperJobArgs{MapperType, reply.WorkerIndex}
@@ -78,6 +82,33 @@ func requestMaster() WorkerReply {
 	reply := WorkerReply{}
 	call("Master.AskTask", &args, &reply)
 	return reply
+}
+
+func saveIntermediaResutls(kva []KeyValue, workerIndex int, nReduecerNum int) {
+	log.Printf("nReducerNum: %d, workerIndex: %d", nReduecerNum, workerIndex)
+	fileName2Encoder := make(map[string](*json.Encoder))
+	log.Printf("after defining initialize encoder")
+	for i := 1; i <= workerIndex; i = i + 1 {
+		for reducerIndex := 1; reducerIndex <= nReduecerNum; reducerIndex = reducerIndex + 1 {
+			fileName := fmt.Sprintf("mr-%d-%d", i, reducerIndex)
+			log.Printf("fileName: %s", fileName)
+			file, err := os.Open(fileName)
+			if err != nil {
+				log.Fatalf("cannot open %v", fileName)
+			}
+			// defer file.Close()
+			enc := json.NewEncoder(file)
+			fileName2Encoder[fileName] = enc
+		}
+	}
+
+	log.Printf("Initialize encoder")
+
+	for i := 0; i < len(kva); i = i + 1 {
+		reducerTaskNum := ihash(kva[i].Key) % nReduecerNum
+		fileName := fmt.Sprintf("mr-%d-%d", workerIndex, reducerTaskNum)
+		fileName2Encoder[fileName].Encode(&kva[i])
+	}
 }
 
 //

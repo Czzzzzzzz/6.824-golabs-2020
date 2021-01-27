@@ -41,6 +41,7 @@ type WorkerReply struct {
 	FileName    string
 	WorkerType  WorkerType
 	WorkerIndex int
+	nReducerNum int
 }
 
 // proto is used when mapper completes the job.

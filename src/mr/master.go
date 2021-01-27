@@ -42,35 +42,18 @@ type File struct {
 // Your code here -- RPC handlers for the worker to call.
 func (m *Master) AskTask(args *WorkerArgs, reply *WorkerReply) error {
 
-	// if args.WorkerType == MapperType {
-	// 	mapperInfo := MapperInfo{}
-	// 	mapperInfo.status = InProgress
-	// 	mapperInfo.workerIndex = m.AssinIndex()
-	// 	mapperInfo.fileName = m.files[mapperInfo.workerIndex].fileName
-
-	// 	m.mappers = append(m.mappers, mapperInfo)
-
-	// 	reply.FileName = mapperInfo.fileName
-	// 	reply.WorkerIndex = mapperInfo.workerIndex
-
-	// 	log.Printf("Assign task to mapper.worker index: %d,file name: %s", reply.WorkerIndex, reply.FileName)
-
-	// } else if args.WorkerType == ReducerType {
-	// 	reducerInfo := ReducerInfo{}
-	// 	reducerInfo.status = InProgress
-	// 	reducerInfo.workerIndex = 1
-	// }
-
 	// check for mappers
 	if m.IdleMapperExisted() {
 		reply.WorkerType = MapperType
 		reply.WorkerIndex = m.AssignIndex()
-	}
-
-	// check for reducers
-	if m.mapperStageEnds() && m.IdleReducerExisted() {
+		reply.FileName = m.AssignFile(reply.WorkerIndex)
+		// reply.nReducerNum = len(m.reducers)
+		reply.nReducerNum = len(m.reducers)
+		log.Printf("Assign mapper. WorkerType: %d, WorkerIndex: %d, FileName: %s, nReducerNum: %d", reply.WorkerType, reply.WorkerIndex, reply.FileName, reply.nReducerNum)
+	} else if m.mapperStageEnds() && m.IdleReducerExisted() { // check for reducers
 		reply.WorkerType = ReducerType
 		reply.WorkerIndex = m.AssignIndex()
+		log.Printf("Assign reducer. WorkerType: %d, WorkerIndex: %d", reply.WorkerType, reply.WorkerIndex)
 	}
 
 	return nil
@@ -78,7 +61,7 @@ func (m *Master) AskTask(args *WorkerArgs, reply *WorkerReply) error {
 
 func (m *Master) CompleteTask(args *MapperJobArgs, reply *MapperJobReply) error {
 	if args.WorkerType == MapperType {
-		m.files[args.WorkerIndex].status = Completed
+		m.files[args.WorkerIndex].status = InProgress
 		m.mappers[args.WorkerIndex].status = Completed
 		reply.Status = SUCCESS
 	}
@@ -88,22 +71,60 @@ func (m *Master) CompleteTask(args *MapperJobArgs, reply *MapperJobReply) error 
 
 func (m *Master) AssignIndex() int {
 	if m.IdleMapperExisted() {
-		return len(m.mappers)
+		return m.getIdelMapperWorkerIndex()
+	} else if m.IdleReducerExisted() {
+		return m.getIdelReduerWorkerIndex()
 	} else {
 		return -1
 	}
 }
 
+func (m *Master) AssignFile(workerIndex int) string {
+	return m.files[workerIndex].fileName
+}
+
 func (m *Master) IdleMapperExisted() bool {
-	return len(m.files) != len(m.mappers)
+	if m.getIdelMapperWorkerIndex() == -1 {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (m *Master) getIdelMapperWorkerIndex() int {
+	for i := 0; i < len(m.mappers); i = i + 1 {
+		if m.mappers[i].status == Idle {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *Master) getIdelReduerWorkerIndex() int {
+	for i := 0; i < len(m.reducers); i = i + 1 {
+		if m.reducers[i].status == Idle {
+			return i
+		}
+	}
+	return -1
 }
 
 func (m *Master) IdleReducerExisted() bool {
+	for i := 0; i < len(m.reducers); i = i + 1 {
+		if m.reducers[i].status == Idle {
+			return true
+		}
+	}
 	return false
 }
 
 func (m *Master) mapperStageEnds() bool {
-	return false
+	for i := 0; i < len(m.mappers); i = i + 1 {
+		if m.mappers[i].status != Completed {
+			return false
+		}
+	}
+	return true
 }
 
 //
@@ -181,6 +202,7 @@ func MakeMaster(files []string, nReduce int) *Master {
 		mapper.workerName = "mapper"
 		mapper.fileName = ""
 		mapper.workerIndex = -1
+		m.mappers = append(m.mappers, mapper)
 	}
 
 	// initialize reducer
@@ -190,6 +212,7 @@ func MakeMaster(files []string, nReduce int) *Master {
 		reducer.workerName = "reducer"
 		reducer.fileName = ""
 		reducer.workerIndex = -1
+		m.reducers = append(m.reducers, reducer)
 	}
 
 	m.server()
