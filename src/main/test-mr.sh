@@ -30,47 +30,48 @@ failed_any=0
 
 # first word-count
 
-# generate the correct output
-../mrsequential ../../mrapps/wc.so ../pg*txt || exit 1
-sort mr-out-0 > mr-correct-wc.txt
-rm -f mr-out*
+# # generate the correct output
+# ../mrsequential ../../mrapps/wc.so ../pg*txt || exit 1
+# sort mr-out-0 > mr-correct-wc.txt
+# rm -f mr-out*
 
-echo '***' Starting wc test.
+# echo '***' Starting wc test.
 
-timeout -k 2s 180s ../mrmaster ../pg*txt &
+# timeout -k 2s 180s ../mrmaster ../pg*txt &
 
-# give the master time to create the sockets.
-sleep 1
+# # give the master time to create the sockets.
+# sleep 1
 
-# start multiple workers.
-timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
-timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
-timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
+# # start multiple workers.
+# timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
+# timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
+# timeout -k 2s 180s ../mrworker ../../mrapps/wc.so &
 
-# wait for one of the processes to exit.
-# under bash, this waits for all processes,
-# including the master.
-wait
+# # wait for one of the processes to exit.
+# # under bash, this waits for all processes,
+# # including the master.
+# wait
 
-# the master or a worker has exited. since workers are required
-# to exit when a job is completely finished, and not before,
-# that means the job has finished.
+# # the master or a worker has exited. since workers are required
+# # to exit when a job is completely finished, and not before,
+# # that means the job has finished.
 
-sort mr-out* | grep . > mr-wc-all
-if cmp mr-wc-all mr-correct-wc.txt
-then
-  echo '---' wc test: PASS
-else
-  echo '---' wc output is not the same as mr-correct-wc.txt
-  echo '---' wc test: FAIL
-  failed_any=1
-fi
+# sort /tmp/cz/mr-out* | grep . > mr-wc-all
+# # sort mr-out* | grep . > mr-wc-all
+# if cmp mr-wc-all mr-correct-wc.txt
+# then
+#   echo '---' wc test: PASS
+# else
+#   echo '---' wc output is not the same as mr-correct-wc.txt
+#   echo '---' wc test: FAIL
+#   failed_any=1
+# fi
 
-# wait for remaining workers and master to exit.
-wait ; wait ; wait
+# # # wait for remaining workers and master to exit.
+# # wait ; wait ; wait
 
-# now indexer
-rm -f mr-*
+# # now indexer
+# rm -f mr-*
 
 # # generate the correct output
 # ../mrsequential ../../mrapps/indexer.so ../pg*txt || exit 1
@@ -86,6 +87,7 @@ rm -f mr-*
 # timeout -k 2s 180s ../mrworker ../../mrapps/indexer.so &
 # timeout -k 2s 180s ../mrworker ../../mrapps/indexer.so
 
+# # sort /tmp/cz/mr-out* | grep . > mr-indexer-all
 # sort mr-out* | grep . > mr-indexer-all
 # if cmp mr-indexer-all mr-correct-indexer.txt
 # then
@@ -99,34 +101,34 @@ rm -f mr-*
 # wait ; wait
 
 
-# echo '***' Starting map parallelism test.
+echo '***' Starting map parallelism test.
 
-# rm -f mr-out* mr-worker*
+rm -f mr-out* mr-worker*
 
-# timeout -k 2s 180s ../mrmaster ../pg*txt &
-# sleep 1
+timeout -k 2s 180s ../mrmaster ../pg*txt &
+sleep 1
 
-# timeout -k 2s 180s ../mrworker ../../mrapps/mtiming.so &
-# timeout -k 2s 180s ../mrworker ../../mrapps/mtiming.so
+timeout -k 2s 180s ../mrworker ../../mrapps/mtiming.so &
+timeout -k 2s 180s ../mrworker ../../mrapps/mtiming.so
 
-# NT=`cat mr-out* | grep '^times-' | wc -l | sed 's/ //g'`
-# if [ "$NT" != "2" ]
-# then
-#   echo '---' saw "$NT" workers rather than 2
-#   echo '---' map parallelism test: FAIL
-#   failed_any=1
-# fi
+NT=`cat mr-out* | grep '^times-' | wc -l | sed 's/ //g'`
+if [ "$NT" != "2" ]
+then
+  echo '---' saw "$NT" workers rather than 2
+  echo '---' map parallelism test: FAIL
+  failed_any=1
+fi
 
-# if cat mr-out* | grep '^parallel.* 2' > /dev/null
-# then
-#   echo '---' map parallelism test: PASS
-# else
-#   echo '---' map workers did not run in parallel
-#   echo '---' map parallelism test: FAIL
-#   failed_any=1
-# fi
+if cat mr-out* | grep '^parallel.* 2' > /dev/null
+then
+  echo '---' map parallelism test: PASS
+else
+  echo '---' map workers did not run in parallel
+  echo '---' map parallelism test: FAIL
+  failed_any=1
+fi
 
-# wait ; wait
+wait ; wait
 
 
 # echo '***' Starting reduce parallelism test.
