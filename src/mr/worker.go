@@ -95,29 +95,26 @@ func saveIntermediaResutls(kva []KeyValue, workerIndex int, nReduecerNum int) {
 	fileName2Encoder := make(map[string](*json.Encoder))
 	// var files []File
 	log.Printf("after defining initialize encoder")
-	for i := 1; i <= workerIndex; i = i + 1 {
-		for reducerIndex := 1; reducerIndex <= nReduecerNum; reducerIndex = reducerIndex + 1 {
-			fileName := fmt.Sprintf("mr-%d-%d", i, reducerIndex)
-			log.Printf("fileName: %s", fileName)
-			file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-			if err != nil {
-				log.Fatalf("cannot open %v", fileName)
-			}
-			defer file.Close()
-			// defer file.Close()
-			enc := json.NewEncoder(file)
-			fileName2Encoder[fileName] = enc
+	for reducerIndex := 0; reducerIndex < nReduecerNum; reducerIndex = reducerIndex + 1 {
+		fileName := fmt.Sprintf("mr-%d-%d", workerIndex, reducerIndex)
+		log.Printf("fileName: %s", fileName)
+		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("cannot open %v", fileName)
 		}
+		defer file.Close()
+		// defer file.Close()
+		enc := json.NewEncoder(file)
+		fileName2Encoder[fileName] = enc
 	}
 
 	log.Printf("Initialize encoder")
-
+ 
 	for i := 0; i < len(kva); i = i + 1 {
 		reducerTaskNum := ihash(kva[i].Key) % nReduecerNum
 		fileName := fmt.Sprintf("mr-%d-%d", workerIndex, reducerTaskNum)
-		log.Printf("kva: %s", kva[i])
+		// log.Printf("kva: %s", kva[i])
 		fileName2Encoder[fileName].Encode(kva[i])
-		// log.Print(fileName)
 	}
 
 	log.Printf("Written.")

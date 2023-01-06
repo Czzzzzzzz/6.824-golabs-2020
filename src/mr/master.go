@@ -55,9 +55,13 @@ func (m *Master) AskTask(args *WorkerArgs, reply *WorkerReply) error {
 func (m *Master) CompleteTask(args *CompletionArgs, reply *CompletionRely) error {
 
 	workerType := args.WorkerType
+	workerIndex := args.WorkerIndex
 	if workerType == MAPPER {
-		log.Printf("worker %d has done.", workerType)
+		log.Printf("worker %d has done.", workerIndex)
+		m.mappers[workerIndex].status = DONE
+		m.mapDone += 1
 	} else if workerType == REDUCER {
+		
 	} else {
 	}
 
