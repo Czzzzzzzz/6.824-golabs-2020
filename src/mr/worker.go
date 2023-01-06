@@ -35,46 +35,46 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 
 	// Your worker implementation here.
-	// args := WorkerArgs{}
-	// args.WorkerName = "my_mapper"
-	// args.WorkerType = MapperType
 	reply := requestMaster()
-
+	
+	log.Printf("fileName: %s", reply.FileName)
+	log.Printf("worker type: %d", reply.WorkerType)
+	
+	fileName := reply.FileName
+	wt := reply.WorkerType 
+	nReduce := reply.NReduce
+	workerIndex := reply.WorkerIndex
 	// uncomment to send the Example RPC to the master.
 	// CallExample()
-
-	if reply.WorkerType == MapperType {
-		fileName := reply.FileName
-		file, err := os.Open(fileName)
-		if err != nil {
-			log.Fatalf("cannot open %v", fileName)
+	if reply.WorkerType == MAPPER {
+		intermediate := []KeyValue{}
+		for _, filename := range fileName {
+			file, err := os.Open(filename)
+			if err != nil {
+				log.Fatalf("cannot open %v", filename)
+			}
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatalf("cannot read %v", filename)
+			}
+			file.Close()
+			kva := mapf(filename, string(content))
+			intermediate = append(intermediate, kva...)
 		}
-		content, err := ioutil.ReadAll(file)
-		file.Close()
-		// kva := mapf(fileName, string(content))
-		// fmt.Print(kva)
-		kva := mapf(fileName, string(content))
-		// saveIntermediaResutls(kva, reply.WorkerIndex, reply.nReducerNum)
-		saveIntermediaResutls(kva, reply.WorkerIndex, 10)
-		log.Printf("Worker %d completed the task.", reply.WorkerIndex)
+		log.Printf("ret: %v", intermediate)
 
-		mapperJobArgs := MapperJobArgs{MapperType, reply.WorkerIndex}
-		mapperJobReply := completeTask(&mapperJobArgs)
+		saveIntermediaResutls(intermediate, workerIndex, nReduce)
+		
+		args := CompletionArgs{}
+		args.WorkerIndex = workerIndex
+		args.WorkerType = wt
+		completeMapTask(args)
 
-		if mapperJobReply.Status == SUCCESS {
-			log.Printf("Master successfuly recieved message from work %d", reply.WorkerIndex)
-		}
-	} else if reply.WorkerType == ReducerType {
-		log.Print("reducer")
+	} else if reply.WorkerType == REDUCER {
+
 	} else {
-		log.Print("unassigned")
-	}
-}
 
-func completeTask(args *MapperJobArgs) MapperJobReply {
-	reply := MapperJobReply{}
-	call("Master.CompleteTask", &args, &reply)
-	return reply
+	}
 }
 
 func requestMaster() WorkerReply {
@@ -82,6 +82,12 @@ func requestMaster() WorkerReply {
 	reply := WorkerReply{}
 	call("Master.AskTask", &args, &reply)
 	return reply
+}
+
+func completeMapTask(args CompletionArgs) error {
+	reply := CompletionRely{}
+	call("Master.CompleteTask", &args, &reply)
+	return nil
 }
 
 func saveIntermediaResutls(kva []KeyValue, workerIndex int, nReduecerNum int) {
@@ -109,9 +115,12 @@ func saveIntermediaResutls(kva []KeyValue, workerIndex int, nReduecerNum int) {
 	for i := 0; i < len(kva); i = i + 1 {
 		reducerTaskNum := ihash(kva[i].Key) % nReduecerNum
 		fileName := fmt.Sprintf("mr-%d-%d", workerIndex, reducerTaskNum)
+		log.Printf("kva: %s", kva[i])
 		fileName2Encoder[fileName].Encode(kva[i])
 		// log.Print(fileName)
 	}
+
+	log.Printf("Written.")
 }
 
 //

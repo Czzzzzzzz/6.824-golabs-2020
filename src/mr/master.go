@@ -7,128 +7,139 @@ import "net/rpc"
 import "net/http"
 
 type WorkerStatus int
+const UNSTARTED WorkerStatus = 0
+const WIP WorkerStatus = 1
+const DONE WorkerStatus = 2
 
-const Idle WorkerStatus = 1
-const InProgress WorkerStatus = 2
-const Completed WorkerStatus = 3
 
-type MapperInfo struct {
-	status      WorkerStatus
-	workerName  string
-	workerIndex int
-	fileName    string
-}
+type WorkerInfo struct {
+	// 0: unstarted, 1: wip, 2: done
+	status WorkerStatus
+	files []string
 
-type ReducerInfo struct {
-	status      WorkerStatus
-	workerName  string
-	workerIndex int
-	fileName    string
+	// timestamp for starting point	
+	ts int
 }
 
 type Master struct {
 	// Your definitions here.
-	files    []File
-	mappers  []MapperInfo
-	reducers []ReducerInfo
-}
+	inputFiles    []string
+	nReduce int
 
-type File struct {
-	fileName    string
-	workerIndex int
-	status      WorkerStatus
+	mappers  []WorkerInfo
+	reducers []WorkerInfo
+
+	mapDone int
+	reduceDone int
 }
 
 // Your code here -- RPC handlers for the worker to call.
 func (m *Master) AskTask(args *WorkerArgs, reply *WorkerReply) error {
 
-	// check for mappers
-	if m.IdleMapperExisted() {
-		reply.WorkerType = MapperType
-		reply.WorkerIndex = m.AssignIndex()
-		reply.FileName = m.AssignFile(reply.WorkerIndex)
-		// reply.nReducerNum = len(m.reducers)
-		reply.nReducerNum = len(m.reducers)
-		log.Printf("Assign mapper. WorkerType: %d, WorkerIndex: %d, FileName: %s, nReducerNum: %d", reply.WorkerType, reply.WorkerIndex, reply.FileName, reply.nReducerNum)
-	} else if m.mapperStageEnds() && m.IdleReducerExisted() { // check for reducers
-		reply.WorkerType = ReducerType
-		reply.WorkerIndex = m.AssignIndex()
-		log.Printf("Assign reducer. WorkerType: %d, WorkerIndex: %d", reply.WorkerType, reply.WorkerIndex)
-	}
+	// reply.FileName = m.inputFiles[m.mapDone]	
+	workerType := m.assignTaskType()
 
-	return nil
-}
+	reply.WorkerType = workerType
 
-func (m *Master) CompleteTask(args *MapperJobArgs, reply *MapperJobReply) error {
-	if args.WorkerType == MapperType {
-		m.files[args.WorkerIndex].status = InProgress
-		m.mappers[args.WorkerIndex].status = Completed
-		reply.Status = SUCCESS
-	}
+	log.Printf("assign worker type: %d", workerType)
 
-	return nil
-}
-
-func (m *Master) AssignIndex() int {
-	if m.IdleMapperExisted() {
-		return m.getIdelMapperWorkerIndex()
-	} else if m.IdleReducerExisted() {
-		return m.getIdelReduerWorkerIndex()
+	if workerType == MAPPER {
+		m.assignMapTask(reply)
+	} else if workerType == REDUCER {
 	} else {
-		return -1
+	}
+
+	return nil
+}
+
+func (m *Master) CompleteTask(args *CompletionArgs, reply *CompletionRely) error {
+
+	workerType := args.WorkerType
+	if workerType == MAPPER {
+		log.Printf("worker %d has done.", workerType)
+	} else if workerType == REDUCER {
+	} else {
+	}
+
+	
+	return nil
+}
+
+func (m *Master) assignTaskType() WorkerType {
+
+	if !m.isMapStageEnds() && m.idleMapTaskExists() {
+		return MAPPER
+	} else if !m.isReduceStageEnds() && m.idleReduceTaskExists() {
+		return REDUCER
+	} else {
+		return NOTYPE
 	}
 }
 
-func (m *Master) AssignFile(workerIndex int) string {
-	return m.files[workerIndex].fileName
-}
-
-func (m *Master) IdleMapperExisted() bool {
-	if m.getIdelMapperWorkerIndex() == -1 {
+func (m *Master) idleMapTaskExists() bool {
+	idx := m.getFirstIdleMapTask()
+	if idx == -1 {
 		return false
 	} else {
 		return true
 	}
 }
 
-func (m *Master) getIdelMapperWorkerIndex() int {
+func (m *Master) getFirstIdleMapTask() int {
 	for i := 0; i < len(m.mappers); i = i + 1 {
-		if m.mappers[i].status == Idle {
+		if m.mappers[i].status == UNSTARTED {
 			return i
 		}
 	}
+
 	return -1
 }
 
-func (m *Master) getIdelReduerWorkerIndex() int {
-	for i := 0; i < len(m.reducers); i = i + 1 {
-		if m.reducers[i].status == Idle {
-			return i
-		}
+func (m *Master) isMapStageEnds() bool {
+
+	if m.mapDone < len(m.inputFiles) {
+		return false
+	} else {
+		return true
 	}
-	return -1
 }
 
-func (m *Master) IdleReducerExisted() bool {
+func (m *Master) assignMapTask(reply *WorkerReply) error {
+
+	idleTaskIdx := m.getFirstIdleMapTask()
+	if idleTaskIdx != -1 {
+		reply.WorkerIndex = idleTaskIdx
+		reply.FileName = append(reply.FileName, m.inputFiles[idleTaskIdx])
+		reply.NReduce = m.nReduce
+		
+		log.Printf("file name: %s", reply.FileName)
+
+		m.mappers[idleTaskIdx].status = WIP
+		m.mappers[idleTaskIdx].ts = 1
+	}
+
+	return nil
+}
+
+func (m *Master) idleReduceTaskExists() bool {
 	for i := 0; i < len(m.reducers); i = i + 1 {
-		if m.reducers[i].status == Idle {
+		if m.reducers[i].status == UNSTARTED {
 			return true
 		}
 	}
+
 	return false
 }
 
-func (m *Master) mapperStageEnds() bool {
-	for i := 0; i < len(m.mappers); i = i + 1 {
-		if m.mappers[i].status != Completed {
-			return false
-		}
+func (m *Master) isReduceStageEnds() bool {
+
+	if m.reduceDone < m.nReduce {
+		return false
+	} else {
+		return true
 	}
-	return true
 }
 
-//
-// an example RPC handler.
 //
 // the RPC argument and reply types are defined in rpc.go.
 //
@@ -159,23 +170,16 @@ func (m *Master) server() {
 //
 func (m *Master) Done() bool {
 
-	// Your code here.
-	for i := 0; i < len(m.files); i = i + 1 {
-		file := m.files[i]
-		if !m.isFileCompleted(&file) {
-			return false
-		}
-	}
+	// // Your code here.
+	// for i := 0; i < len(m.files); i = i + 1 {
+	// 	file := m.files[i]
+	// 	if !m.isFileCompleted(&file) {
+	// 		return false
+	// 	}
+	// }
 
-	return true
-}
-
-func (m *Master) isFileCompleted(file *File) bool {
-	if file.status == Completed {
-		return true
-	} else {
-		return false
-	}
+	// return true
+	return false
 }
 
 //
@@ -189,30 +193,21 @@ func MakeMaster(files []string, nReduce int) *Master {
 	// Your code here.
 	// initialize files
 	for i := 0; i < len(files); i = i + 1 {
-		file := File{}
-		file.fileName = files[i]
-		file.workerIndex = -1
-		m.files = append(m.files, file)
+		file := files[i]
+		m.inputFiles = append(m.inputFiles, file)
 	}
+
+	m.nReduce = nReduce
+	m.mapDone = 0
+	m.reduceDone = 0
 
 	// initialize mapper
 	for i := 0; i < len(files); i = i + 1 {
-		mapper := MapperInfo{}
-		mapper.status = Idle
-		mapper.workerName = "mapper"
-		mapper.fileName = ""
-		mapper.workerIndex = -1
+		mapper := WorkerInfo{}
+		mapper.status = UNSTARTED
+		mapper.files = append(mapper.files, m.inputFiles[i])
+		mapper.ts = -1
 		m.mappers = append(m.mappers, mapper)
-	}
-
-	// initialize reducer
-	for i := 0; i < nReduce; i = i + 1 {
-		reducer := ReducerInfo{}
-		reducer.status = Idle
-		reducer.workerName = "reducer"
-		reducer.fileName = ""
-		reducer.workerIndex = -1
-		m.reducers = append(m.reducers, reducer)
 	}
 
 	m.server()

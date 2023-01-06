@@ -19,6 +19,11 @@ type MessageCode int
 const SUCCESS MessageCode = 400
 const FAIL MessageCode = 500
 
+type WorkerType int
+const NOTYPE WorkerType = 0
+const MAPPER WorkerType = 1
+const REDUCER WorkerType = 2
+
 type ExampleArgs struct {
 	X int
 }
@@ -27,31 +32,24 @@ type ExampleReply struct {
 	Y int
 }
 
-type WorkerType int
-
-const MapperType WorkerType = 1
-const ReducerType WorkerType = 2
-
 // Add your RPC definitions here.
 type WorkerArgs struct {
-	WorkerName string
 }
 
 type WorkerReply struct {
-	FileName    string
-	WorkerType  WorkerType
+	FileName    []string
 	WorkerIndex int
-	nReducerNum int
+	// 1: mapper, 2: reducer
+	WorkerType WorkerType
+	NReduce int
 }
 
-// proto is used when mapper completes the job.
-type MapperJobArgs struct {
-	WorkerType  WorkerType
+type CompletionArgs struct {
 	WorkerIndex int
+	WorkerType WorkerType
 }
 
-type MapperJobReply struct {
-	Status MessageCode
+type CompletionRely struct {
 }
 
 // Cook up a unique-ish UNIX-domain socket name
